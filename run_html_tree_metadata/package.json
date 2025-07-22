@@ -1,0 +1,37 @@
+{
+  "name": "html-tree-metadata-extractor",
+  "version": "2.0.0",
+  "description": "CSP-safe HTML tree metadata extraction with comprehensive DOM tree to JSON conversion for responsive analysis",
+  "main": "html-tree-metadata.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node html-tree-metadata.mjs",
+    "extract": "node html-tree-metadata.mjs",
+    "test": "node html-tree-metadata.mjs --test",
+    "dev": "node --inspect html-tree-metadata.mjs"
+  },
+  "keywords": [
+    "playwright",
+    "dom",
+    "metadata",
+    "css-extraction",
+    "responsive-design",
+    "html-tree",
+    "website-analysis",
+    "csp-safe",
+    "automation"
+  ],
+  "author": "GitHub Action UI Automations",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.41.0",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/github-action-ui-automations"
+  }
+}

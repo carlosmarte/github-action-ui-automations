@@ -1,0 +1,198 @@
+name: HTML Tree Metadata Extraction
+
+on:
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: 'Website URL to extract HTML tree metadata from'
+        required: true
+        type: string
+      max_depth:
+        description: 'Maximum DOM tree depth to extract'
+        required: false
+        default: '15'
+        type: string
+      extract_screenshots:
+        description: 'Extract screenshots for each viewport'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+
+jobs:
+  html-tree-metadata:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'html_tree_metadata/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        cd html_tree_metadata
+        npm install
+    
+    - name: Install Playwright browsers
+      run: |
+        cd html_tree_metadata
+        npx playwright install chromium
+    
+    - name: Create dataset directory
+      run: mkdir -p dataset
+    
+    - name: Run HTML Tree Metadata Extraction
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+        MAX_DEPTH: ${{ inputs.max_depth }}
+        EXTRACT_SCREENSHOTS: ${{ inputs.extract_screenshots }}
+        VERBOSE_LOGGING: false
+      run: |
+        cd html_tree_metadata
+        node html-tree-metadata.mjs
+    
+    - name: Generate GitHub Actions Summary Report
+      run: |
+        echo "# 🌳 HTML Tree Metadata Extraction Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**🌐 Website:** ${{ inputs.website_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**📅 Extraction Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        SUMMARY_FILE="dataset/html-tree-summary.json"
+        if [ -f "$SUMMARY_FILE" ]; then
+          echo "## 📊 Extraction Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Viewport | Elements Extracted | Interactive | Visible | With Text |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------------------|-------------|---------|-----------|" >> $GITHUB_STEP_SUMMARY
+          
+          PHONE_COUNT=$(jq -r '.stats.totalElements.phone.totalElements // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          PHONE_INTERACTIVE=$(jq -r '.stats.totalElements.phone.interactive // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          PHONE_VISIBLE=$(jq -r '.stats.totalElements.phone.visible // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          PHONE_TEXT=$(jq -r '.stats.totalElements.phone.withText // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          
+          TABLET_COUNT=$(jq -r '.stats.totalElements.tablet.totalElements // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          TABLET_INTERACTIVE=$(jq -r '.stats.totalElements.tablet.interactive // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          TABLET_VISIBLE=$(jq -r '.stats.totalElements.tablet.visible // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          TABLET_TEXT=$(jq -r '.stats.totalElements.tablet.withText // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          
+          DESKTOP_COUNT=$(jq -r '.stats.totalElements.desktop.totalElements // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          DESKTOP_INTERACTIVE=$(jq -r '.stats.totalElements.desktop.interactive // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          DESKTOP_VISIBLE=$(jq -r '.stats.totalElements.desktop.visible // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          DESKTOP_TEXT=$(jq -r '.stats.totalElements.desktop.withText // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          
+          echo "| 📱 Phone (375x667) | $PHONE_COUNT | $PHONE_INTERACTIVE | $PHONE_VISIBLE | $PHONE_TEXT |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📟 Tablet (768x1024) | $TABLET_COUNT | $TABLET_INTERACTIVE | $TABLET_VISIBLE | $TABLET_TEXT |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🖥️ Desktop (1920x1080) | $DESKTOP_COUNT | $DESKTOP_INTERACTIVE | $DESKTOP_VISIBLE | $DESKTOP_TEXT |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          VIEWPORTS=$(jq -r '.stats.viewports | join(", ")' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          PAGE_TITLE=$(jq -r '.metadata.pageTitle // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          TOTAL_ELEMENTS=$(jq -r '.stats.summary.totalElements // "N/A"' "$SUMMARY_FILE" 2>/dev/null)
+          CSP_SAFE=$(jq -r '.metadata.cspSafe // false' "$SUMMARY_FILE" 2>/dev/null)
+          
+          echo "## 📋 Extraction Details" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Detail | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 📄 Page Title | $PAGE_TITLE |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📱 Viewports Processed | $VIEWPORTS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📊 Total Elements | $TOTAL_ELEMENTS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔒 CSP Safe | $CSP_SAFE |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⚙️ Max Depth | ${{ inputs.max_depth }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📸 Screenshots | ${{ inputs.extract_screenshots }} |" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📁 Generated Files" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- \`html-tree-metadata.json\` - Complete comprehensive report with all viewports" >> $GITHUB_STEP_SUMMARY
+          echo "- \`html-tree-summary.json\` - Summary statistics and metadata for GitHub Actions" >> $GITHUB_STEP_SUMMARY
+          echo "- \`html-tree-phone.json\` - Phone viewport DOM tree (375x667)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`html-tree-tablet.json\` - Tablet viewport DOM tree (768x1024)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`html-tree-desktop.json\` - Desktop viewport DOM tree (1920x1080)" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.extract_screenshots }}" = "true" ]; then
+            echo "- \`html-tree-screenshot-phone.png\` - Phone viewport screenshot" >> $GITHUB_STEP_SUMMARY
+            echo "- \`html-tree-screenshot-tablet.png\` - Tablet viewport screenshot" >> $GITHUB_STEP_SUMMARY
+            echo "- \`html-tree-screenshot-desktop.png\` - Desktop viewport screenshot" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔍 DOM Tree Structure" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Each element contains comprehensive metadata:" >> $GITHUB_STEP_SUMMARY
+          echo "- **🎯 Position & Dimensions:** x, y, width, height, center coordinates" >> $GITHUB_STEP_SUMMARY
+          echo "- **🏷️ Element Classification:** Inferred tag name, attributes, semantic data" >> $GITHUB_STEP_SUMMARY
+          echo "- **📝 Content & Text:** Text content, visibility, interactivity status" >> $GITHUB_STEP_SUMMARY
+          echo "- **🧭 Hierarchy:** Parent-child relationships with depth tracking (max: ${{ inputs.max_depth }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **🔍 Test Locators:** CSS selectors, XPath, test IDs, role-based locators" >> $GITHUB_STEP_SUMMARY
+          echo "- **♿ Accessibility:** ARIA attributes, roles, labels for screen readers" >> $GITHUB_STEP_SUMMARY
+          echo "- **📱 Responsive:** Three separate DOM trees for different viewport sizes" >> $GITHUB_STEP_SUMMARY
+          echo "- **🔒 CSP Safe:** Extracted using only Playwright native APIs (no eval)" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Status:** No summary file found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The HTML tree metadata extraction may have failed. Check the previous steps for errors." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Also create the report file for artifact upload
+        echo "# HTML Tree Metadata Extraction Report" > dataset/html-tree-report-summary.md
+        echo "" >> dataset/html-tree-report-summary.md
+        echo "**Website:** ${{ inputs.website_url }}" >> dataset/html-tree-report-summary.md
+        echo "**Extraction Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> dataset/html-tree-report-summary.md
+        echo "" >> dataset/html-tree-report-summary.md
+        
+        if [ -f "$SUMMARY_FILE" ]; then
+          echo "## Extraction Results" >> dataset/html-tree-report-summary.md
+          echo "" >> dataset/html-tree-report-summary.md
+          echo "### Viewport Statistics" >> dataset/html-tree-report-summary.md
+          echo "- **Phone (375x667):** $PHONE_COUNT elements, $PHONE_INTERACTIVE interactive, $PHONE_VISIBLE visible" >> dataset/html-tree-report-summary.md
+          echo "- **Tablet (768x1024):** $TABLET_COUNT elements, $TABLET_INTERACTIVE interactive, $TABLET_VISIBLE visible" >> dataset/html-tree-report-summary.md
+          echo "- **Desktop (1920x1080):** $DESKTOP_COUNT elements, $DESKTOP_INTERACTIVE interactive, $DESKTOP_VISIBLE visible" >> dataset/html-tree-report-summary.md
+          echo "" >> dataset/html-tree-report-summary.md
+          echo "### Page Details" >> dataset/html-tree-report-summary.md
+          echo "- **Page Title:** $PAGE_TITLE" >> dataset/html-tree-report-summary.md
+          echo "- **Total Elements:** $TOTAL_ELEMENTS" >> dataset/html-tree-report-summary.md
+          echo "- **CSP Safe:** $CSP_SAFE" >> dataset/html-tree-report-summary.md
+          echo "- **Max Depth:** ${{ inputs.max_depth }}" >> dataset/html-tree-report-summary.md
+          echo "- **Screenshots:** ${{ inputs.extract_screenshots }}" >> dataset/html-tree-report-summary.md
+          echo "" >> dataset/html-tree-report-summary.md
+          echo "### Generated Files" >> dataset/html-tree-report-summary.md
+          echo "1. **html-tree-metadata.json** - Complete comprehensive report" >> dataset/html-tree-report-summary.md
+          echo "2. **html-tree-phone.json** - Phone viewport DOM tree" >> dataset/html-tree-report-summary.md
+          echo "3. **html-tree-tablet.json** - Tablet viewport DOM tree" >> dataset/html-tree-report-summary.md
+          echo "4. **html-tree-desktop.json** - Desktop viewport DOM tree" >> dataset/html-tree-report-summary.md
+          if [ "${{ inputs.extract_screenshots }}" = "true" ]; then
+            echo "5. **Screenshots** - Full-page captures for each viewport" >> dataset/html-tree-report-summary.md
+          fi
+        else
+          echo "**Status:** No summary file found - extraction may have failed" >> dataset/html-tree-report-summary.md
+        fi
+    
+    - name: Process results
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        node processing.mjs --url="${{ inputs.website_url }}" --report-type=html-tree-metadata
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: html-tree-metadata-results-${{ github.run_number }}
+        path: |
+          dataset/html-tree-metadata.json
+          dataset/html-tree-summary.json
+          dataset/html-tree-phone.json
+          dataset/html-tree-tablet.json
+          dataset/html-tree-desktop.json
+          dataset/html-tree-report-summary.md
+          dataset/html-tree-screenshot-*.png
+          dataset/processing-summary.json
+        retention-days: 30
+        if-no-files-found: warn

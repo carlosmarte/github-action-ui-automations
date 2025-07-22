@@ -1,0 +1,29 @@
+{
+  "name": "csp-safe-locator-builder",
+  "version": "1.0.0",
+  "description": "CSP-safe locator object builder using only Playwright's native browser automation APIs",
+  "main": "build_locator_object.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node build_locator_object.mjs",
+    "build": "node build_locator_object.mjs",
+    "test": "node test-locator-builder.mjs"
+  },
+  "keywords": [
+    "playwright",
+    "locators",
+    "csp-safe",
+    "test-automation",
+    "accessibility",
+    "role-based"
+  ],
+  "author": "GitHub Action UI Automations",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.41.0",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

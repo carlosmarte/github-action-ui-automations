@@ -1,0 +1,24 @@
+{
+  "name": "video-recording",
+  "version": "1.0.0",
+  "description": "Playwright script for website video recording and interaction capture",
+  "type": "module",
+  "main": "video-recorder.mjs",
+  "scripts": {
+    "start": "node video-recorder.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "playwright",
+    "video-recording",
+    "automation",
+    "web-recording",
+    "browser-automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.40.0",
+    "dotenv": "^16.3.1"
+  }
+}

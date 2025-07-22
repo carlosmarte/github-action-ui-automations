@@ -1,0 +1,25 @@
+{
+  "name": "disabled-javascript-tester",
+  "version": "1.0.0",
+  "description": "Playwright script to test page rendering with JavaScript disabled for SSR validation",
+  "type": "module",
+  "main": "disabled-javascript-tester.mjs",
+  "scripts": {
+    "start": "node disabled-javascript-tester.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "playwright",
+    "javascript-disabled",
+    "ssr-testing",
+    "progressive-enhancement",
+    "accessibility",
+    "server-side-rendering"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "playwright": "^1.54.1"
+  }
+}

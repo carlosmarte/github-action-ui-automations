@@ -1,0 +1,27 @@
+{
+  "name": "seo-analyzer",
+  "version": "1.0.0",
+  "description": "Playwright script to analyze SEO tags and metadata for search engine optimization",
+  "type": "module",
+  "main": "seo-analyzer.mjs",
+  "scripts": {
+    "start": "node seo-analyzer.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "playwright",
+    "seo",
+    "meta-tags",
+    "open-graph",
+    "twitter-cards",
+    "structured-data",
+    "schema-org",
+    "search-optimization"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "playwright": "^1.54.1"
+  }
+}

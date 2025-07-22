@@ -1,0 +1,25 @@
+{
+  "name": "accessibility-testing",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Accessibility testing using Playwright and axe-core",
+  "main": "accessibility.mjs",
+  "scripts": {
+    "test": "node accessibility.mjs"
+  },
+  "dependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "axe-core": "^4.10.3",
+    "dotenv": "^16.4.5",
+    "jsdom": "^25.0.1",
+    "playwright": "^1.47.2"
+  },
+  "keywords": [
+    "accessibility",
+    "axe-core",
+    "playwright",
+    "a11y"
+  ],
+  "author": "",
+  "license": "MIT"
+}

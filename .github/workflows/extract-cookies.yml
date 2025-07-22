@@ -1,0 +1,99 @@
+name: Extract Cookies
+
+on:
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: "Website URL to extract cookies from"
+        required: true
+        type: string
+
+jobs:
+  extract-cookies:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: "run_cookies/package-lock.json"
+
+      - name: Install dependencies
+        run: |
+          cd run_cookies
+          npm install
+
+      - name: Install Playwright browsers
+        run: |
+          cd run_cookies
+          npx playwright install chromium
+
+      - name: Create dataset directory
+        run: mkdir -p dataset
+
+      - name: Run cookie extraction
+        env:
+          WEBSITE_URL: ${{ inputs.website_url }}
+        run: |
+          cd run_cookies
+          node cookies.mjs
+
+      - name: Generate GitHub Actions Summary Report
+        run: |
+          echo "# 🍪 Cookie Extraction Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**🌐 Website:** ${{ inputs.website_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**📅 Extraction Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "dataset/cookies.json" ]; then
+            COOKIE_COUNT=$(jq length dataset/cookies.json 2>/dev/null || echo "0")
+            echo "**📊 Total Cookies Found:** $COOKIE_COUNT" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$COOKIE_COUNT" -gt 0 ]; then
+              echo "## 📋 Cookie Summary" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "| Name | Domain | Path | Secure | HttpOnly |" >> $GITHUB_STEP_SUMMARY
+              echo "|------|--------|------|---------|----------|" >> $GITHUB_STEP_SUMMARY
+              jq -r '.[] | "| \(.name) | \(.domain) | \(.path) | \(.secure) | \(.httpOnly) |"' dataset/cookies.json >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error reading cookies | - | - | - | - |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "ℹ️ No cookies were found on this website." >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ **Status:** No cookies file found" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The cookie extraction may have failed. Check the previous steps for errors." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Also create the report file for artifact upload
+          echo "# Cookie Extraction Report" > dataset/report.md
+          echo "" >> dataset/report.md
+          echo "**Website:** ${{ inputs.website_url }}" >> dataset/report.md
+          echo "**Extraction Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> dataset/report.md
+          echo "" >> dataset/report.md
+          if [ -f "dataset/cookies.json" ]; then
+            COOKIE_COUNT=$(jq length dataset/cookies.json 2>/dev/null || echo "0")
+            echo "**Total Cookies Found:** $COOKIE_COUNT" >> dataset/report.md
+            echo "" >> dataset/report.md
+            echo "## Cookie Summary" >> dataset/report.md
+            echo "" >> dataset/report.md
+            echo "| Name | Domain | Path | Secure | HttpOnly |" >> dataset/report.md
+            echo "|------|--------|------|---------|----------|" >> dataset/report.md
+            jq -r '.[] | "| \(.name) | \(.domain) | \(.path) | \(.secure) | \(.httpOnly) |"' dataset/cookies.json >> dataset/report.md 2>/dev/null || echo "| Error reading cookies | - | - | - | - |" >> dataset/report.md
+          else
+            echo "**Status:** No cookies file found" >> dataset/report.md
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cookie-extraction-results
+          path: |
+            dataset/cookies.json
+            dataset/report.md

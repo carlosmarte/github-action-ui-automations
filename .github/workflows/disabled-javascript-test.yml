@@ -1,0 +1,277 @@
+name: Disabled JavaScript Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: 'Website URL to test with JavaScript disabled'
+        required: true
+        type: string
+
+jobs:
+  disabled-javascript-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'disabled_javascript/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        cd disabled_javascript
+        npm install
+    
+    - name: Install Playwright browsers
+      run: |
+        cd disabled_javascript
+        npx playwright install chromium
+    
+    - name: Create dataset directory
+      run: mkdir -p dataset
+    
+    - name: Run disabled JavaScript test
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        cd disabled_javascript
+        node disabled-javascript-tester.mjs
+    
+    - name: Generate GitHub Actions Summary Report
+      run: |
+        echo "# 🚫 Disabled JavaScript Test Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**🌐 Website:** ${{ inputs.website_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**📅 Test Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        SUMMARY_FILE="dataset/disabled-js-summary.json"
+        if [ -f "$SUMMARY_FILE" ]; then
+          SSR_SCORE=$(jq -r '.results.overallSSRScore' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          QUALITY_ASSESSMENT=$(jq -r '.results.qualityAssessment' "$SUMMARY_FILE" 2>/dev/null || echo "Unknown")
+          CONTENT_PRESERVATION=$(jq -r '.results.contentPreservation' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          FUNCTIONALITY_PRESERVATION=$(jq -r '.results.functionalityPreservation' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          VISUAL_CONSISTENCY=$(jq -r '.results.visualConsistency' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          ACCESSIBILITY_MAINTENANCE=$(jq -r '.results.accessibilityMaintenance' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          ISSUE_COUNT=$(jq -r '.issues | length' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          RECOMMENDATION_COUNT=$(jq -r '.recommendations | length' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          
+          JS_ENABLED_ELEMENTS=$(jq -r '.comparison.jsEnabled.totalElements' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          JS_DISABLED_ELEMENTS=$(jq -r '.comparison.jsDisabled.totalElements' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          JS_ENABLED_INTERACTIVE=$(jq -r '.comparison.jsEnabled.interactiveElements' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          JS_DISABLED_INTERACTIVE=$(jq -r '.comparison.jsDisabled.interactiveElements' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          JS_ENABLED_VISIBLE=$(jq -r '.comparison.jsEnabled.visibleElements' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          JS_DISABLED_VISIBLE=$(jq -r '.comparison.jsDisabled.visibleElements' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          
+          echo "## 🎯 Overall Assessment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Score |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏆 **SSR Score** | **${SSR_SCORE}/100** |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📋 Quality Assessment | $QUALITY_ASSESSMENT |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⚠️ Issues Found | $ISSUE_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "| 💡 Recommendations | $RECOMMENDATION_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # SSR Score assessment with emojis
+          if [ "$SSR_SCORE" -ge 90 ]; then
+            SSR_RATING="🟢 Excellent SSR"
+            SSR_DESCRIPTION="Website works excellently without JavaScript"
+          elif [ "$SSR_SCORE" -ge 75 ]; then
+            SSR_RATING="🟡 Good SSR"
+            SSR_DESCRIPTION="Website works well with minor JavaScript dependencies"
+          elif [ "$SSR_SCORE" -ge 60 ]; then
+            SSR_RATING="🟠 Fair SSR"
+            SSR_DESCRIPTION="Website has moderate JavaScript dependencies"
+          elif [ "$SSR_SCORE" -ge 40 ]; then
+            SSR_RATING="🔴 Poor SSR"
+            SSR_DESCRIPTION="Website has significant JavaScript dependencies"
+          else
+            SSR_RATING="⚫ Very Poor SSR"
+            SSR_DESCRIPTION="Website heavily depends on JavaScript"
+          fi
+          
+          echo "### $SSR_RATING" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "$SSR_DESCRIPTION" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 📊 Detailed Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Score | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Content preservation assessment
+          if [ "$CONTENT_PRESERVATION" -ge 80 ]; then
+            CONTENT_STATUS="✅ Good"
+          elif [ "$CONTENT_PRESERVATION" -ge 60 ]; then
+            CONTENT_STATUS="⚠️ Fair"
+          else
+            CONTENT_STATUS="❌ Poor"
+          fi
+          echo "| 📝 Content Preservation | ${CONTENT_PRESERVATION}% | $CONTENT_STATUS |" >> $GITHUB_STEP_SUMMARY
+          
+          # Functionality preservation assessment
+          if [ "$FUNCTIONALITY_PRESERVATION" -ge 80 ]; then
+            FUNCTIONALITY_STATUS="✅ Good"
+          elif [ "$FUNCTIONALITY_PRESERVATION" -ge 60 ]; then
+            FUNCTIONALITY_STATUS="⚠️ Fair"
+          else
+            FUNCTIONALITY_STATUS="❌ Poor"
+          fi
+          echo "| ⚙️ Functionality Preservation | ${FUNCTIONALITY_PRESERVATION}% | $FUNCTIONALITY_STATUS |" >> $GITHUB_STEP_SUMMARY
+          
+          # Visual consistency assessment
+          if [ "$VISUAL_CONSISTENCY" -ge 80 ]; then
+            VISUAL_STATUS="✅ Good"
+          elif [ "$VISUAL_CONSISTENCY" -ge 60 ]; then
+            VISUAL_STATUS="⚠️ Fair"
+          else
+            VISUAL_STATUS="❌ Poor"
+          fi
+          echo "| 👁️ Visual Consistency | ${VISUAL_CONSISTENCY}% | $VISUAL_STATUS |" >> $GITHUB_STEP_SUMMARY
+          
+          # Accessibility maintenance assessment
+          if [ "$ACCESSIBILITY_MAINTENANCE" -ge 80 ]; then
+            ACCESSIBILITY_STATUS="✅ Good"
+          elif [ "$ACCESSIBILITY_MAINTENANCE" -ge 60 ]; then
+            ACCESSIBILITY_STATUS="⚠️ Fair"
+          else
+            ACCESSIBILITY_STATUS="❌ Poor"
+          fi
+          echo "| ♿ Accessibility Maintenance | ${ACCESSIBILITY_MAINTENANCE}% | $ACCESSIBILITY_STATUS |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🔄 Side-by-Side Comparison" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | With JavaScript | Without JavaScript | Difference |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|----------------|-------------------|------------|" >> $GITHUB_STEP_SUMMARY
+          
+          ELEMENT_DIFF=$((JS_ENABLED_ELEMENTS - JS_DISABLED_ELEMENTS))
+          INTERACTIVE_DIFF=$((JS_ENABLED_INTERACTIVE - JS_DISABLED_INTERACTIVE))
+          VISIBLE_DIFF=$((JS_ENABLED_VISIBLE - JS_DISABLED_VISIBLE))
+          
+          echo "| 📊 Total Elements | $JS_ENABLED_ELEMENTS | $JS_DISABLED_ELEMENTS | $ELEMENT_DIFF |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔗 Interactive Elements | $JS_ENABLED_INTERACTIVE | $JS_DISABLED_INTERACTIVE | $INTERACTIVE_DIFF |" >> $GITHUB_STEP_SUMMARY
+          echo "| 👁️ Visible Elements | $JS_ENABLED_VISIBLE | $JS_DISABLED_VISIBLE | $VISIBLE_DIFF |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Show issues if any
+          if [ "$ISSUE_COUNT" -gt 0 ]; then
+            echo "## ⚠️ Identified Issues" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract and display issues
+            jq -r '.issues[] | "### \(.type) (\(.severity | ascii_upcase))\n\n**Description:** \(.description)\n\n**Impact:** \(.impact)\n\n---\n"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Could not parse issues" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **No significant issues found!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Show recommendations
+          if [ "$RECOMMENDATION_COUNT" -gt 0 ]; then
+            echo "## 💡 Optimization Recommendations" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            jq -r '.recommendations[] | "### \(.category) (\(.priority | ascii_upcase) priority)\n\n**Suggestion:** \(.suggestion)\n\n**Impact:** \(.impact)\n\n---\n"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Could not parse recommendations" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Progressive Enhancement Tips
+          echo "## 🚀 Progressive Enhancement Tips" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Best Practices for JavaScript-Free Functionality:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. **🏗️ Server-Side Rendering**: Ensure all critical content is rendered on the server" >> $GITHUB_STEP_SUMMARY
+          echo "2. **📝 Semantic HTML**: Use proper HTML elements (forms, buttons, links) for functionality" >> $GITHUB_STEP_SUMMARY
+          echo "3. **🎨 CSS-First Styling**: Use CSS for layout and visual effects before JavaScript" >> $GITHUB_STEP_SUMMARY
+          echo "4. **♿ Accessibility**: Ensure all features work with keyboard navigation and screen readers" >> $GITHUB_STEP_SUMMARY
+          echo "5. **📱 Mobile-First**: Design for devices with limited JavaScript support" >> $GITHUB_STEP_SUMMARY
+          echo "6. **🔄 Graceful Degradation**: Core functionality should work without JavaScript" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Overall assessment and next steps
+          echo "## 🏁 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$SSR_SCORE" -ge 80 ]; then
+            echo "✅ **Great job!** Your website has excellent SSR implementation." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- Continue monitoring for regressions" >> $GITHUB_STEP_SUMMARY
+            echo "- Consider advanced optimization techniques" >> $GITHUB_STEP_SUMMARY
+            echo "- Share your SSR best practices with the team" >> $GITHUB_STEP_SUMMARY
+          elif [ "$SSR_SCORE" -ge 60 ]; then
+            echo "🟡 **Good progress!** Your website has decent SSR with room for improvement." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- Focus on the high-priority recommendations above" >> $GITHUB_STEP_SUMMARY
+            echo "- Implement progressive enhancement patterns" >> $GITHUB_STEP_SUMMARY
+            echo "- Test critical user journeys without JavaScript" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🚨 **Action needed!** Your website has significant JavaScript dependencies." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- Prioritize server-side rendering implementation" >> $GITHUB_STEP_SUMMARY
+            echo "- Review all critical functionality for JavaScript-free alternatives" >> $GITHUB_STEP_SUMMARY
+            echo "- Consider SEO and accessibility implications" >> $GITHUB_STEP_SUMMARY
+            echo "- Plan a progressive enhancement strategy" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**📁 Generated Files:**" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 Detailed comparison data (JSON)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 Test summary and analysis (JSON)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📄 Human-readable report with recommendations (Markdown)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📸 Visual comparison screenshots (PNG)" >> $GITHUB_STEP_SUMMARY
+          echo "  - With JavaScript enabled" >> $GITHUB_STEP_SUMMARY
+          echo "  - With JavaScript disabled" >> $GITHUB_STEP_SUMMARY
+          
+        else
+          echo "❌ **ERROR**: No disabled JavaScript test summary file found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The test may have failed. Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Create the summary report file for artifact upload
+        echo "# Disabled JavaScript Test Report" > dataset/disabled-js-report-summary.md
+        echo "" >> dataset/disabled-js-report-summary.md
+        echo "**Website:** ${{ inputs.website_url }}" >> dataset/disabled-js-report-summary.md
+        echo "**Test Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> dataset/disabled-js-report-summary.md
+        echo "" >> dataset/disabled-js-report-summary.md
+        
+        if [ -f "$SUMMARY_FILE" ]; then
+          echo "## Test Results" >> dataset/disabled-js-report-summary.md
+          echo "" >> dataset/disabled-js-report-summary.md
+          echo "- **SSR Score:** ${SSR_SCORE}/100" >> dataset/disabled-js-report-summary.md
+          echo "- **Quality Assessment:** $QUALITY_ASSESSMENT" >> dataset/disabled-js-report-summary.md
+          echo "- **Content Preservation:** ${CONTENT_PRESERVATION}%" >> dataset/disabled-js-report-summary.md
+          echo "- **Functionality Preservation:** ${FUNCTIONALITY_PRESERVATION}%" >> dataset/disabled-js-report-summary.md
+          echo "- **Visual Consistency:** ${VISUAL_CONSISTENCY}%" >> dataset/disabled-js-report-summary.md
+          echo "- **Accessibility Maintenance:** ${ACCESSIBILITY_MAINTENANCE}%" >> dataset/disabled-js-report-summary.md
+          echo "- **Issues Found:** $ISSUE_COUNT" >> dataset/disabled-js-report-summary.md
+          echo "- **Recommendations:** $RECOMMENDATION_COUNT" >> dataset/disabled-js-report-summary.md
+        else
+          echo "**Status:** Test data not available" >> dataset/disabled-js-report-summary.md
+        fi
+    
+    - name: Process results
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        node processing.mjs --url="${{ inputs.website_url }}" --report-type=disabled-javascript
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: disabled-javascript-results
+        path: |
+          dataset/disabled-js-comparison-data.json
+          dataset/disabled-js-summary.json
+          dataset/disabled-js-report.md
+          dataset/disabled-js-report-summary.md
+          dataset/disabled-js-test-with-javascript.png
+          dataset/disabled-js-test-without-javascript.png
+          dataset/processing-summary.json

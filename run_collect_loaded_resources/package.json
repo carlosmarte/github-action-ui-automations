@@ -1,0 +1,25 @@
+{
+  "name": "loaded-resources-collector",
+  "version": "1.0.0",
+  "description": "Playwright script to collect loaded resources from web pages",
+  "type": "module",
+  "main": "loaded-resources-collector.mjs",
+  "scripts": {
+    "start": "node loaded-resources-collector.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "playwright",
+    "resource-monitoring",
+    "automation",
+    "web-performance",
+    "network-analysis",
+    "asset-collection"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.40.0",
+    "dotenv": "^16.3.1"
+  }
+}

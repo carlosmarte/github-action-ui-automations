@@ -1,0 +1,31 @@
+{
+  "name": "csp-safe-interactivity-extractor",
+  "version": "1.0.0",
+  "description": "CSP-safe interactivity extraction tool using only Playwright's native browser automation APIs",
+  "main": "run_extract_interactivity.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node run_extract_interactivity.mjs",
+    "extract": "node run_extract_interactivity.mjs",
+    "test": "node test-interactivity.mjs"
+  },
+  "keywords": [
+    "playwright",
+    "interactivity",
+    "csp-safe",
+    "test-automation",
+    "user-simulation",
+    "web-testing",
+    "form-testing",
+    "click-testing"
+  ],
+  "author": "GitHub Action UI Automations",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.41.0",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

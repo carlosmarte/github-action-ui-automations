@@ -1,0 +1,153 @@
+name: Accessibility Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: 'Website URL to audit for accessibility'
+        required: true
+        type: string
+
+jobs:
+  accessibility-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'run_accessibility/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        cd run_accessibility
+        npm install
+        npm install jsdom axe-core
+    
+    - name: Install Playwright browsers
+      run: |
+        cd run_accessibility
+        npx playwright install chromium
+    
+    - name: Create dataset directory
+      run: mkdir -p dataset
+    
+    - name: Run accessibility audit
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        cd run_accessibility
+        node accessibility.mjs
+    
+    - name: Generate GitHub Actions Summary Report
+      run: |
+        echo "# ♿ Accessibility Audit Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**🌐 Website:** ${{ inputs.website_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**📅 Audit Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        SUMMARY_FILE="dataset/accessibility-summary.json"
+        if [ -f "$SUMMARY_FILE" ]; then
+          TOTAL_VIOLATIONS=$(jq -r '.violations.count' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          CRITICAL=$(jq -r '.violations.critical' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          SERIOUS=$(jq -r '.violations.serious' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          MODERATE=$(jq -r '.violations.moderate' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          MINOR=$(jq -r '.violations.minor' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          PASSES=$(jq -r '.passes' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          INCOMPLETE=$(jq -r '.incomplete' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          
+          echo "## 🚨 Violation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔴 Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟠 Serious | $SERIOUS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟡 Moderate | $MODERATE |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔵 Minor | $MINOR |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Total Violations** | **$TOTAL_VIOLATIONS** |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## ✅ Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Result | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ Passed Tests | $PASSES |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⚠️ Incomplete Tests | $INCOMPLETE |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Show top violations if any exist
+          if [ "$TOTAL_VIOLATIONS" -gt 0 ]; then
+            echo "## 🔍 Top Violations" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract top 5 violations
+            jq -r '.violationDetails[:5] | to_entries[] | "### \(.key + 1). \(.value.help)\n\n**Impact:** \(.value.impact | ascii_upcase)  \n**Description:** \(.value.description)  \n**Affected Elements:** \(.value.nodes)  \n**Help:** [\(.value.helpUrl)](\(.value.helpUrl))\n\n---\n"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Error parsing violation details" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🎉 **No accessibility violations found!**" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Add overall assessment
+          CRITICAL_SERIOUS=$((CRITICAL + SERIOUS))
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Overall Assessment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$CRITICAL_SERIOUS" -eq 0 ]; then
+            echo "✅ **GOOD**: No critical or serious accessibility issues found." >> $GITHUB_STEP_SUMMARY
+          elif [ "$CRITICAL_SERIOUS" -le 5 ]; then
+            echo "⚠️ **NEEDS ATTENTION**: $CRITICAL_SERIOUS critical/serious issues found." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🚨 **REQUIRES IMMEDIATE ACTION**: $CRITICAL_SERIOUS critical/serious accessibility issues found." >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "❌ **Status:** No accessibility summary file found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The accessibility audit may have failed. Check the previous steps for errors." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Also create the report file for artifact upload
+        echo "# Accessibility Audit Report" > dataset/accessibility-report-summary.md
+        echo "" >> dataset/accessibility-report-summary.md
+        echo "**Website:** ${{ inputs.website_url }}" >> dataset/accessibility-report-summary.md
+        echo "**Audit Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> dataset/accessibility-report-summary.md
+        echo "" >> dataset/accessibility-report-summary.md
+        
+        if [ -f "$SUMMARY_FILE" ]; then
+          echo "## Violation Summary" >> dataset/accessibility-report-summary.md
+          echo "" >> dataset/accessibility-report-summary.md
+          echo "- **Total Violations:** $TOTAL_VIOLATIONS" >> dataset/accessibility-report-summary.md
+          echo "- **Critical:** $CRITICAL" >> dataset/accessibility-report-summary.md
+          echo "- **Serious:** $SERIOUS" >> dataset/accessibility-report-summary.md
+          echo "- **Moderate:** $MODERATE" >> dataset/accessibility-report-summary.md
+          echo "- **Minor:** $MINOR" >> dataset/accessibility-report-summary.md
+          echo "" >> dataset/accessibility-report-summary.md
+          echo "## Test Results" >> dataset/accessibility-report-summary.md
+          echo "" >> dataset/accessibility-report-summary.md
+          echo "- **Passed Tests:** $PASSES" >> dataset/accessibility-report-summary.md
+          echo "- **Incomplete Tests:** $INCOMPLETE" >> dataset/accessibility-report-summary.md
+        else
+          echo "**Status:** No accessibility summary file found" >> dataset/accessibility-report-summary.md
+        fi
+    
+    - name: Process results
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        node processing.mjs --url="${{ inputs.website_url }}" --report-type=accessibility
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: accessibility-audit-results
+        path: |
+          dataset/accessibility-report.json
+          dataset/accessibility-summary.json
+          dataset/accessibility-report.md
+          dataset/accessibility-report-summary.md
+          dataset/accessibility-screenshot.png
+          dataset/processing-summary.json

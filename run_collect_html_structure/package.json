@@ -1,0 +1,25 @@
+{
+  "name": "html-structure-collector",
+  "version": "1.0.0",
+  "description": "Playwright script to collect HTML structure and inheritance tree from web pages",
+  "type": "module",
+  "main": "html-structure-collector.mjs",
+  "scripts": {
+    "start": "node html-structure-collector.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "playwright",
+    "html-structure",
+    "automation",
+    "web-scraping",
+    "dom-analysis",
+    "html-inheritance"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.40.0",
+    "dotenv": "^16.3.1"
+  }
+}

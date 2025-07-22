@@ -1,0 +1,143 @@
+name: Links Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: 'Website URL to collect links from'
+        required: true
+        type: string
+      device:
+        description: 'Device type for audit'
+        required: false
+        default: 'desktop'
+        type: choice
+        options:
+        - desktop
+        - tablet
+        - mobile
+
+jobs:
+  links-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'run_links/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        cd run_links
+        npm install
+    
+    - name: Create dataset directory
+      run: mkdir -p dataset
+    
+    - name: Run links collection
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+        DEVICE: ${{ inputs.device }}
+      run: |
+        cd run_links
+        node links.mjs
+    
+    - name: Generate GitHub Actions Summary Report
+      run: |
+        echo "# 🔗 Links Audit Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**🌐 Website:** ${{ inputs.website_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**📱 Device:** ${{ inputs.device }}" >> $GITHUB_STEP_SUMMARY
+        echo "**📅 Audit Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Find the most recent summary file
+        DOMAIN=$(echo "${{ inputs.website_url }}" | sed 's|https\?://||' | sed 's|/.*||' | sed 's|\.|—|g')
+        SUMMARY_FILE=$(find dataset -name "links-summary-${DOMAIN}.json" -type f | head -1)
+        
+        if [ -f "$SUMMARY_FILE" ]; then
+          echo "## 🔗 Link Analysis Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          
+          TOTAL_LINKS=$(jq -r '.totalLinks' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          EXTERNAL_LINKS=$(jq -r '.externalLinks' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          INTERNAL_LINKS=$(jq -r '.internalLinks' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          LINKS_WITH_IMAGES=$(jq -r '.linksWithImages' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          LINKS_TARGET_BLANK=$(jq -r '.linksWithTargetBlank' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          UNIQUE_DOMAINS=$(jq -r '.uniqueDomains' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          
+          echo "| 🔗 Total Links | $TOTAL_LINKS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 External Links | $EXTERNAL_LINKS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏠 Internal Links | $INTERNAL_LINKS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🖼️ Links with Images | $LINKS_WITH_IMAGES |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🆕 Links opening in new tab | $LINKS_TARGET_BLANK |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌍 Unique Domains | $UNIQUE_DOMAINS |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Calculate percentages if total > 0
+          if [ "$TOTAL_LINKS" != "N/A" ] && [ "$TOTAL_LINKS" -gt 0 ]; then
+            EXTERNAL_PCT=$(echo "scale=1; $EXTERNAL_LINKS * 100 / $TOTAL_LINKS" | bc 2>/dev/null || echo "N/A")
+            INTERNAL_PCT=$(echo "scale=1; $INTERNAL_LINKS * 100 / $TOTAL_LINKS" | bc 2>/dev/null || echo "N/A")
+            
+            echo "## 📊 Link Distribution" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **External Links:** ${EXTERNAL_PCT}%" >> $GITHUB_STEP_SUMMARY
+            echo "- **Internal Links:** ${INTERNAL_PCT}%" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "❌ **Status:** No links summary file found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The links collection may have failed. Check the previous steps for errors." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Also create the report file for artifact upload
+        echo "# Links Audit Report" > dataset/links-report-summary.md
+        echo "" >> dataset/links-report-summary.md
+        echo "**Website:** ${{ inputs.website_url }}" >> dataset/links-report-summary.md
+        echo "**Device:** ${{ inputs.device }}" >> dataset/links-report-summary.md
+        echo "**Audit Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> dataset/links-report-summary.md
+        echo "" >> dataset/links-report-summary.md
+        
+        if [ -f "$SUMMARY_FILE" ]; then
+          echo "## Link Analysis Results" >> dataset/links-report-summary.md
+          echo "" >> dataset/links-report-summary.md
+          echo "- **Total Links:** $TOTAL_LINKS" >> dataset/links-report-summary.md
+          echo "- **External Links:** $EXTERNAL_LINKS" >> dataset/links-report-summary.md
+          echo "- **Internal Links:** $INTERNAL_LINKS" >> dataset/links-report-summary.md
+          echo "- **Links with Images:** $LINKS_WITH_IMAGES" >> dataset/links-report-summary.md
+          echo "- **Links opening in new tab:** $LINKS_TARGET_BLANK" >> dataset/links-report-summary.md
+          echo "- **Unique Domains:** $UNIQUE_DOMAINS" >> dataset/links-report-summary.md
+          echo "" >> dataset/links-report-summary.md
+          
+          if [ "$TOTAL_LINKS" != "N/A" ] && [ "$TOTAL_LINKS" -gt 0 ]; then
+            echo "## Link Distribution" >> dataset/links-report-summary.md
+            echo "" >> dataset/links-report-summary.md
+            echo "- **External Links:** ${EXTERNAL_PCT}%" >> dataset/links-report-summary.md
+            echo "- **Internal Links:** ${INTERNAL_PCT}%" >> dataset/links-report-summary.md
+          fi
+        else
+          echo "**Status:** No links summary file found" >> dataset/links-report-summary.md
+        fi
+    
+    - name: Process results
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        node processing.mjs --url="${{ inputs.website_url }}" --report-type=links
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: links-audit-results-${{ inputs.device }}
+        path: |
+          dataset/links-*.json
+          dataset/links-report-summary.md
+          dataset/processing-summary.json

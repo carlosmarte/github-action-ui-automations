@@ -1,0 +1,181 @@
+name: Console Messages Collection
+
+on:
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: 'Website URL to collect console messages from'
+        required: true
+        type: string
+
+jobs:
+  console-listener:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'run_console_listener/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        cd run_console_listener
+        npm install
+    
+    - name: Install Playwright browsers
+      run: |
+        cd run_console_listener
+        npx playwright install chromium
+    
+    - name: Create dataset directory
+      run: mkdir -p dataset
+    
+    - name: Run console listener
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        cd run_console_listener
+        node console-listener.mjs
+    
+    - name: Generate GitHub Actions Summary Report
+      run: |
+        echo "# 🎧 Console Messages Collection Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**🌐 Website:** ${{ inputs.website_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**📅 Collection Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        SUMMARY_FILE="dataset/console-summary.json"
+        if [ -f "$SUMMARY_FILE" ]; then
+          TOTAL_MESSAGES=$(jq -r '.statistics.totalMessages' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          CONSOLE_ERRORS=$(jq -r '.statistics.errorCount' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          WARNINGS=$(jq -r '.statistics.warningCount' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          INFO_MSGS=$(jq -r '.statistics.infoCount' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          LOG_MSGS=$(jq -r '.statistics.logCount' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          DEBUG_MSGS=$(jq -r '.statistics.debugCount' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          NETWORK_ERRORS=$(jq -r '.errorSummary.networkErrors' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          PAGE_ERRORS=$(jq -r '.errorSummary.pageErrors' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          TOTAL_ISSUES=$(jq -r '.errorSummary.totalIssues' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          
+          echo "## 📊 Console Messages Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Message Type | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 📝 Total Messages | $TOTAL_MESSAGES |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔴 Console Errors | $CONSOLE_ERRORS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟡 Warnings | $WARNINGS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔵 Info Messages | $INFO_MSGS |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⚪ Log Messages | $LOG_MSGS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Debug Messages | $DEBUG_MSGS |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🚨 Error Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Error Type | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔴 Console Errors | $CONSOLE_ERRORS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 Network Errors | $NETWORK_ERRORS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📄 Page Errors | $PAGE_ERRORS |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Total Issues** | **$TOTAL_ISSUES** |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Show console errors if any exist
+          if [ "$CONSOLE_ERRORS" -gt 0 ]; then
+            echo "## 🔍 Console Errors Details" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract console errors from the full data file
+            if [ -f "dataset/console-messages.json" ]; then
+              jq -r '.consoleData.errors[] | "### Error\n\n**Type:** \(.[0])\n\n**Message:**\n```\n\(.[1])\n```\n\n---\n"' "dataset/console-messages.json" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Error parsing console errors" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          # Show network errors if any exist
+          if [ "$NETWORK_ERRORS" -gt 0 ]; then
+            echo "## 🌐 Network Errors Details" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            if [ -f "dataset/console-messages.json" ]; then
+              jq -r '.additionalErrors.networkErrors[:5] | to_entries[] | "### Network Error \(.key + 1)\n\n**URL:** \(.value.url)\n\n**Method:** \(.value.method)\n\n**Error:** \(.value.errorText)\n\n**Timestamp:** \(.value.timestamp)\n\n---\n"' "dataset/console-messages.json" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Error parsing network errors" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          # Add overall assessment
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Overall Assessment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$TOTAL_ISSUES" -eq 0 ]; then
+            echo "✅ **EXCELLENT**: No console errors, network errors, or page errors detected." >> $GITHUB_STEP_SUMMARY
+          elif [ "$TOTAL_ISSUES" -le 3 ]; then
+            echo "⚠️ **GOOD**: $TOTAL_ISSUES minor issues detected. Review for potential improvements." >> $GITHUB_STEP_SUMMARY
+          elif [ "$TOTAL_ISSUES" -le 10 ]; then
+            echo "🟡 **NEEDS ATTENTION**: $TOTAL_ISSUES issues detected. Consider investigating and fixing." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🚨 **REQUIRES ACTION**: $TOTAL_ISSUES issues detected. Immediate investigation recommended." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Add collection statistics
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📈 Collection Statistics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **📝 Total Console Messages Captured:** $TOTAL_MESSAGES" >> $GITHUB_STEP_SUMMARY
+          echo "- **⏱️ Collection Method:** Real-time console monitoring with Playwright" >> $GITHUB_STEP_SUMMARY
+          echo "- **🔍 Monitoring Duration:** Page load + 5 seconds additional capture time" >> $GITHUB_STEP_SUMMARY
+          echo "- **📊 Analysis:** Categorized by message type and severity" >> $GITHUB_STEP_SUMMARY
+          
+        else
+          echo "❌ **Status:** No console summary file found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The console collection may have failed. Check the previous steps for errors." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Also create the report file for artifact upload
+        echo "# Console Messages Collection Report" > dataset/console-report-summary.md
+        echo "" >> dataset/console-report-summary.md
+        echo "**Website:** ${{ inputs.website_url }}" >> dataset/console-report-summary.md
+        echo "**Collection Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> dataset/console-report-summary.md
+        echo "" >> dataset/console-report-summary.md
+        
+        if [ -f "$SUMMARY_FILE" ]; then
+          echo "## Console Messages Summary" >> dataset/console-report-summary.md
+          echo "" >> dataset/console-report-summary.md
+          echo "- **Total Messages:** $TOTAL_MESSAGES" >> dataset/console-report-summary.md
+          echo "- **Console Errors:** $CONSOLE_ERRORS" >> dataset/console-report-summary.md
+          echo "- **Warnings:** $WARNINGS" >> dataset/console-report-summary.md
+          echo "- **Info Messages:** $INFO_MSGS" >> dataset/console-report-summary.md
+          echo "- **Log Messages:** $LOG_MSGS" >> dataset/console-report-summary.md
+          echo "- **Debug Messages:** $DEBUG_MSGS" >> dataset/console-report-summary.md
+          echo "" >> dataset/console-report-summary.md
+          echo "## Error Summary" >> dataset/console-report-summary.md
+          echo "" >> dataset/console-report-summary.md
+          echo "- **Console Errors:** $CONSOLE_ERRORS" >> dataset/console-report-summary.md
+          echo "- **Network Errors:** $NETWORK_ERRORS" >> dataset/console-report-summary.md
+          echo "- **Page Errors:** $PAGE_ERRORS" >> dataset/console-report-summary.md
+          echo "- **Total Issues:** $TOTAL_ISSUES" >> dataset/console-report-summary.md
+        else
+          echo "**Status:** No console summary file found" >> dataset/console-report-summary.md
+        fi
+    
+    - name: Process results
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        node processing.mjs --url="${{ inputs.website_url }}" --report-type=console
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: console-listener-results
+        path: |
+          dataset/console-messages.json
+          dataset/console-summary.json
+          dataset/console-report.md
+          dataset/console-report-summary.md
+          dataset/console-listener-screenshot.png
+          dataset/processing-summary.json

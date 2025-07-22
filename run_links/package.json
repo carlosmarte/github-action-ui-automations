@@ -1,0 +1,13 @@
+{
+  "name": "run-links",
+  "version": "1.0.0",
+  "description": "Playwright script to collect all links from web pages",
+  "main": "links.mjs",
+  "scripts": {
+    "start": "node links.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0",
+    "dotenv": "^16.0.0"
+  }
+}

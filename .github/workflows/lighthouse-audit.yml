@@ -1,0 +1,146 @@
+name: Lighthouse Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: 'Website URL to audit with Lighthouse'
+        required: true
+        type: string
+      device:
+        description: 'Device type for audit'
+        required: false
+        default: 'desktop'
+        type: choice
+        options:
+        - desktop
+        - tablet
+        - mobile
+
+jobs:
+  lighthouse-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'run_lighthouse/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        cd run_lighthouse
+        npm install
+    
+    - name: Create dataset directory
+      run: mkdir -p dataset
+    
+    - name: Run Lighthouse audit
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+        DEVICE: ${{ inputs.device }}
+      run: |
+        cd run_lighthouse
+        node lighthouse.mjs
+    
+    - name: Generate GitHub Actions Summary Report
+      run: |
+        echo "# ⚡ Lighthouse Audit Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**🌐 Website:** ${{ inputs.website_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**📱 Device:** ${{ inputs.device }}" >> $GITHUB_STEP_SUMMARY
+        echo "**📅 Audit Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        SUMMARY_FILE="dataset/lighthouse-summary-${{ inputs.device }}.json"
+        if [ -f "$SUMMARY_FILE" ]; then
+          echo "## 📊 Performance Scores" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Category | Score |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          
+          PERF_SCORE=$(jq -r '.scores.performance' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          ACCESS_SCORE=$(jq -r '.scores.accessibility' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          BEST_SCORE=$(jq -r '.scores.bestPractices' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          SEO_SCORE=$(jq -r '.scores.seo' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          PWA_SCORE=$(jq -r '.scores.pwa' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          
+          echo "| ⚡ Performance | $PERF_SCORE/100 |" >> $GITHUB_STEP_SUMMARY
+          echo "| ♿ Accessibility | $ACCESS_SCORE/100 |" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ Best Practices | $BEST_SCORE/100 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 SEO | $SEO_SCORE/100 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📱 PWA | $PWA_SCORE/100 |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## ⏱️ Key Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          
+          FCP=$(jq -r '.metrics.firstContentfulPaint' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          LCP=$(jq -r '.metrics.largestContentfulPaint' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          CLS=$(jq -r '.metrics.cumulativeLayoutShift' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          TBT=$(jq -r '.metrics.totalBlockingTime' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          SI=$(jq -r '.metrics.speedIndex' "$SUMMARY_FILE" 2>/dev/null || echo "N/A")
+          
+          echo "| 🎨 First Contentful Paint | $FCP |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🖼️ Largest Contentful Paint | $LCP |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📐 Cumulative Layout Shift | $CLS |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⏳ Total Blocking Time | $TBT |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⚡ Speed Index | $SI |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Status:** No lighthouse summary file found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The lighthouse audit may have failed. Check the previous steps for errors." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Also create the report file for artifact upload
+        echo "# Lighthouse Audit Report" > dataset/lighthouse-report-summary.md
+        echo "" >> dataset/lighthouse-report-summary.md
+        echo "**Website:** ${{ inputs.website_url }}" >> dataset/lighthouse-report-summary.md
+        echo "**Device:** ${{ inputs.device }}" >> dataset/lighthouse-report-summary.md
+        echo "**Audit Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> dataset/lighthouse-report-summary.md
+        echo "" >> dataset/lighthouse-report-summary.md
+        
+        if [ -f "$SUMMARY_FILE" ]; then
+          echo "## Performance Scores" >> dataset/lighthouse-report-summary.md
+          echo "" >> dataset/lighthouse-report-summary.md
+          echo "- **Performance:** $PERF_SCORE/100" >> dataset/lighthouse-report-summary.md
+          echo "- **Accessibility:** $ACCESS_SCORE/100" >> dataset/lighthouse-report-summary.md
+          echo "- **Best Practices:** $BEST_SCORE/100" >> dataset/lighthouse-report-summary.md
+          echo "- **SEO:** $SEO_SCORE/100" >> dataset/lighthouse-report-summary.md
+          echo "- **PWA:** $PWA_SCORE/100" >> dataset/lighthouse-report-summary.md
+          echo "" >> dataset/lighthouse-report-summary.md
+          echo "## Key Metrics" >> dataset/lighthouse-report-summary.md
+          echo "" >> dataset/lighthouse-report-summary.md
+          echo "- **First Contentful Paint:** $FCP" >> dataset/lighthouse-report-summary.md
+          echo "- **Largest Contentful Paint:** $LCP" >> dataset/lighthouse-report-summary.md
+          echo "- **Cumulative Layout Shift:** $CLS" >> dataset/lighthouse-report-summary.md
+          echo "- **Total Blocking Time:** $TBT" >> dataset/lighthouse-report-summary.md
+          echo "- **Speed Index:** $SI" >> dataset/lighthouse-report-summary.md
+        else
+          echo "**Status:** No lighthouse summary file found" >> dataset/lighthouse-report-summary.md
+        fi
+    
+    - name: Process results
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        node processing.mjs --url="${{ inputs.website_url }}" --report-type=lighthouse
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: lighthouse-audit-results-${{ inputs.device }}
+        path: |
+          dataset/lighthouse-report-${{ inputs.device }}.json
+          dataset/lighthouse-summary-${{ inputs.device }}.json
+          dataset/lighthouse-report-summary.md
+          dataset/processing-summary.json
+          dataset/screenshot-${{ inputs.device }}-*.png
+          dataset/final-screenshot-${{ inputs.device }}.png

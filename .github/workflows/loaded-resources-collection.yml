@@ -1,0 +1,301 @@
+name: Loaded Resources Collection
+
+on:
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: 'Website URL to collect loaded resources from'
+        required: true
+        type: string
+      collection_duration:
+        description: 'Collection duration in milliseconds (default: 10000)'
+        required: false
+        default: '10000'
+        type: string
+
+jobs:
+  loaded-resources-collection:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'collect_loaded_resources/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        cd collect_loaded_resources
+        npm install
+    
+    - name: Install Playwright browsers
+      run: |
+        cd collect_loaded_resources
+        npx playwright install chromium
+    
+    - name: Create dataset directory
+      run: mkdir -p dataset
+    
+    - name: Run loaded resources collection
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+        COLLECTION_DURATION: ${{ inputs.collection_duration }}
+      run: |
+        cd collect_loaded_resources
+        node loaded-resources-collector.mjs
+    
+    - name: Generate GitHub Actions Summary Report
+      run: |
+        echo "# 📦 Loaded Resources Collection Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**🌐 Website:** ${{ inputs.website_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**📅 Collection Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+        echo "**⏱️ Collection Duration:** ${{ inputs.collection_duration }}ms" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        SUMMARY_FILE="dataset/loaded-resources-summary.json"
+        if [ -f "$SUMMARY_FILE" ]; then
+          TOTAL_RESOURCES=$(jq -r '.resources.total' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          SCRIPTS=$(jq -r '.resources.scripts' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          STYLESHEETS=$(jq -r '.resources.stylesheets' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          IMAGES=$(jq -r '.resources.images' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          FONTS=$(jq -r '.resources.fonts' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          XHR=$(jq -r '.resources.xhr' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          FETCH=$(jq -r '.resources.fetch' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          DOCUMENTS=$(jq -r '.resources.documents' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          MEDIA=$(jq -r '.resources.media' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          OTHER=$(jq -r '.resources.other' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          TOTAL_SIZE=$(jq -r '.performance.totalSizeFormatted' "$SUMMARY_FILE" 2>/dev/null || echo "0 B")
+          AVG_LOAD_TIME=$(jq -r '.performance.averageLoadTime' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          CACHE_EFFICIENCY=$(jq -r '.performance.cacheEfficiency' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          ISSUE_COUNT=$(jq -r '.performance.issueCount' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          BLOCKING_RESOURCES=$(jq -r '.analysis.blockingResources' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          NON_BLOCKING_RESOURCES=$(jq -r '.analysis.nonBlockingResources' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          CRITICAL_PATH_RESOURCES=$(jq -r '.analysis.criticalPathResources | length' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          
+          echo "## 📊 Resource Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource Type | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 **Total Resources** | **$TOTAL_RESOURCES** |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📜 Scripts | $SCRIPTS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🎨 Stylesheets | $STYLESHEETS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🖼️ Images | $IMAGES |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📝 Fonts | $FONTS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📡 XHR Requests | $XHR |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔄 Fetch Requests | $FETCH |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📄 Documents | $DOCUMENTS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🎵 Media | $MEDIA |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Other | $OTHER |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 📈 Performance Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 📏 Total Size | $TOTAL_SIZE |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⏱️ Average Load Time | ${AVG_LOAD_TIME}ms |" >> $GITHUB_STEP_SUMMARY
+          echo "| 💾 Cache Efficiency | ${CACHE_EFFICIENCY}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚫 Blocking Resources | $BLOCKING_RESOURCES |" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ Non-Blocking Resources | $NON_BLOCKING_RESOURCES |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🎯 Critical Path Resources | $CRITICAL_PATH_RESOURCES |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⚠️ Performance Issues | $ISSUE_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Performance assessment
+          echo "## 🎯 Performance Assessment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Resource count assessment
+          if [ "$TOTAL_RESOURCES" -le 50 ]; then
+            RESOURCE_RATING="🟢 Excellent"
+          elif [ "$TOTAL_RESOURCES" -le 100 ]; then
+            RESOURCE_RATING="🟡 Good"
+          elif [ "$TOTAL_RESOURCES" -le 150 ]; then
+            RESOURCE_RATING="🟠 Fair"
+          else
+            RESOURCE_RATING="🔴 Poor"
+          fi
+          
+          # Load time assessment
+          if [ "$AVG_LOAD_TIME" -le 500 ]; then
+            SPEED_RATING="🟢 Fast"
+          elif [ "$AVG_LOAD_TIME" -le 1000 ]; then
+            SPEED_RATING="🟡 Moderate"
+          elif [ "$AVG_LOAD_TIME" -le 2000 ]; then
+            SPEED_RATING="🟠 Slow"
+          else
+            SPEED_RATING="🔴 Very Slow"
+          fi
+          
+          # Cache efficiency assessment
+          if [ "$CACHE_EFFICIENCY" -ge 80 ]; then
+            CACHE_RATING="🟢 Excellent"
+          elif [ "$CACHE_EFFICIENCY" -ge 60 ]; then
+            CACHE_RATING="🟡 Good"
+          elif [ "$CACHE_EFFICIENCY" -ge 40 ]; then
+            CACHE_RATING="🟠 Fair"
+          else
+            CACHE_RATING="🔴 Poor"
+          fi
+          
+          echo "- **Resource Count:** $RESOURCE_RATING ($TOTAL_RESOURCES resources)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Load Speed:** $SPEED_RATING (${AVG_LOAD_TIME}ms average)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cache Efficiency:** $CACHE_RATING (${CACHE_EFFICIENCY}%)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Show performance issues if any
+          if [ "$ISSUE_COUNT" -gt 0 ]; then
+            echo "## ⚠️ Performance Issues Found" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract and display issues
+            jq -r '.analysis.performanceIssues[] | "### \(.type) (\(.severity | ascii_upcase))\n\n**Description:** \(.description)\n\n**Impact:** \(.impact)\n\n---\n"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Could not parse performance issues" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **No significant performance issues detected!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Show recommendations
+          RECOMMENDATIONS=$(jq -r '.analysis.recommendations | length' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          if [ "$RECOMMENDATIONS" -gt 0 ]; then
+            echo "## 💡 Optimization Recommendations" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            jq -r '.analysis.recommendations[] | "- \(.)"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "- Could not parse recommendations" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Show largest resources
+          echo "## 📏 Largest Resources" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Size | Type |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|------|------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Extract top 5 largest resources
+          jq -r '.analysis.largestResources[:5][] | "| \(.url | split("/")[-1] | if length > 40 then .[:37] + "..." else . end) | \(.sizeFormatted) | \(.type) |"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing largest resources | | |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Show slowest resources
+          echo "## ⏱️ Slowest Resources" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Duration | Type |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|----------|------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Extract top 5 slowest resources
+          jq -r '.analysis.slowestResources[:5][] | "| \(.url | split("/")[-1] | if length > 40 then .[:37] + "..." else . end) | \(.durationFormatted) | \(.type) |"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing slowest resources | | |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Show loading behavior breakdown
+          echo "## 🔄 Loading Behavior Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Loading Behavior | Count | Impact |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Extract loading behavior data
+          jq -r '.analysis.loadingBehaviorBreakdown | to_entries[] | "| \(.key) | \(.value) | \(if .key == "sync" then "🚫 Blocks parsing" elif .key == "async" then "✅ Non-blocking" elif .key == "defer" then "⏳ Deferred" elif .key == "lazy" then "💤 Lazy loaded" else "📄 Default" end) |"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing loading behaviors | | |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Show critical path resources if any
+          if [ "$CRITICAL_PATH_RESOURCES" -gt 0 ]; then
+            echo "## 🎯 Critical Path Resources" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "These blocking resources may impact performance:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Resource | Size | Duration | Type |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|------|----------|------|" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract top 5 critical path resources
+            jq -r '.analysis.criticalPathResources[:5][] | "| \(.url | split("/")[-1] | if length > 30 then .[:27] + "..." else . end) | \(.sizeFormatted) | \(.durationFormatted) | \(.type) |"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| Error parsing critical path resources | | | |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Overall assessment
+          echo "## 🏆 Overall Assessment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Calculate overall score based on multiple factors
+          RESOURCE_SCORE=50
+          if [ "$TOTAL_RESOURCES" -le 50 ]; then RESOURCE_SCORE=90
+          elif [ "$TOTAL_RESOURCES" -le 100 ]; then RESOURCE_SCORE=70
+          elif [ "$TOTAL_RESOURCES" -le 150 ]; then RESOURCE_SCORE=50
+          else RESOURCE_SCORE=30; fi
+          
+          SPEED_SCORE=50
+          if [ "$AVG_LOAD_TIME" -le 500 ]; then SPEED_SCORE=90
+          elif [ "$AVG_LOAD_TIME" -le 1000 ]; then SPEED_SCORE=70
+          elif [ "$AVG_LOAD_TIME" -le 2000 ]; then SPEED_SCORE=50
+          else SPEED_SCORE=30; fi
+          
+          OVERALL_SCORE=$(echo "scale=0; ($RESOURCE_SCORE + $SPEED_SCORE + $CACHE_EFFICIENCY) / 3" | bc -l 2>/dev/null || echo "50")
+          
+          if [ "$OVERALL_SCORE" -ge 80 ]; then
+            echo "✅ **EXCELLENT**: Website has optimized resource loading" >> $GITHUB_STEP_SUMMARY
+          elif [ "$OVERALL_SCORE" -ge 60 ]; then
+            echo "🟡 **GOOD**: Resource loading is generally well optimized" >> $GITHUB_STEP_SUMMARY
+          elif [ "$OVERALL_SCORE" -ge 40 ]; then
+            echo "⚠️ **FAIR**: Some optimization opportunities exist" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🚨 **NEEDS IMPROVEMENT**: Significant optimization needed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**📁 Generated Files:**" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 Detailed resource data with network timings (JSON)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌐 Complete network events log (JSON)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 Performance analysis and metrics (JSON)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📄 Human-readable report with recommendations (Markdown)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📸 Page screenshot for reference (PNG)" >> $GITHUB_STEP_SUMMARY
+          
+        else
+          echo "❌ **ERROR**: No resource collection summary file found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The resource collection may have failed. Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Create the summary report file for artifact upload
+        echo "# Loaded Resources Collection Report" > dataset/loaded-resources-report-summary.md
+        echo "" >> dataset/loaded-resources-report-summary.md
+        echo "**Website:** ${{ inputs.website_url }}" >> dataset/loaded-resources-report-summary.md
+        echo "**Collection Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> dataset/loaded-resources-report-summary.md
+        echo "**Collection Duration:** ${{ inputs.collection_duration }}ms" >> dataset/loaded-resources-report-summary.md
+        echo "" >> dataset/loaded-resources-report-summary.md
+        
+        if [ -f "$SUMMARY_FILE" ]; then
+          echo "## Collection Results" >> dataset/loaded-resources-report-summary.md
+          echo "" >> dataset/loaded-resources-report-summary.md
+          echo "- **Total Resources:** $TOTAL_RESOURCES" >> dataset/loaded-resources-report-summary.md
+          echo "- **Scripts:** $SCRIPTS" >> dataset/loaded-resources-report-summary.md
+          echo "- **Stylesheets:** $STYLESHEETS" >> dataset/loaded-resources-report-summary.md
+          echo "- **Images:** $IMAGES" >> dataset/loaded-resources-report-summary.md
+          echo "- **Total Size:** $TOTAL_SIZE" >> dataset/loaded-resources-report-summary.md
+          echo "- **Average Load Time:** ${AVG_LOAD_TIME}ms" >> dataset/loaded-resources-report-summary.md
+          echo "- **Cache Efficiency:** ${CACHE_EFFICIENCY}%" >> dataset/loaded-resources-report-summary.md
+          echo "- **Performance Issues:** $ISSUE_COUNT" >> dataset/loaded-resources-report-summary.md
+        else
+          echo "**Status:** Resource collection data not available" >> dataset/loaded-resources-report-summary.md
+        fi
+    
+    - name: Process results
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        node processing.mjs --url="${{ inputs.website_url }}" --report-type=loaded-resources
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: loaded-resources-results
+        path: |
+          dataset/loaded-resources-data.json
+          dataset/network-events.json
+          dataset/loaded-resources-summary.json
+          dataset/loaded-resources-report.md
+          dataset/loaded-resources-report-summary.md
+          dataset/loaded-resources-screenshot.png
+          dataset/processing-summary.json

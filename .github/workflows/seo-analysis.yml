@@ -1,0 +1,334 @@
+name: SEO Analysis
+
+on:
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: "Website URL to analyze for SEO"
+        required: true
+        type: string
+
+jobs:
+  seo-analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: "run_seo/package-lock.json"
+
+      - name: Install dependencies
+        run: |
+          cd run_seo
+          npm install
+
+      - name: Install Playwright browsers
+        run: |
+          cd run_seo
+          npx playwright install chromium
+
+      - name: Create dataset directory
+        run: mkdir -p dataset
+
+      - name: Run SEO analysis
+        env:
+          WEBSITE_URL: ${{ inputs.website_url }}
+        run: |
+          cd run_seo
+          node seo-analyzer.mjs
+
+      - name: Generate GitHub Actions Summary Report
+        run: |
+          echo "# 🔍 SEO Analysis Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**🌐 Website:** ${{ inputs.website_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**📅 Analysis Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          SUMMARY_FILE="dataset/seo-summary.json"
+          if [ -f "$SUMMARY_FILE" ]; then
+            OVERALL_SCORE=$(jq -r '.results.overallScore' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            PERCENTAGE=$(jq -r '.results.percentage' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            ISSUES_COUNT=$(jq -r '.results.issues' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            RECOMMENDATIONS_COUNT=$(jq -r '.results.recommendations' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            PAGE_TITLE=$(jq -r '.test.pageTitle' "$SUMMARY_FILE" 2>/dev/null || echo "Unknown")
+            
+            # SEO Elements
+            TITLE_PRESENT=$(jq -r '.basicSEO.title.present' "$SUMMARY_FILE" 2>/dev/null || echo "false")
+            TITLE_LENGTH=$(jq -r '.basicSEO.title.length' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            DESCRIPTION_PRESENT=$(jq -r '.basicSEO.description.present' "$SUMMARY_FILE" 2>/dev/null || echo "false")
+            DESCRIPTION_LENGTH=$(jq -r '.basicSEO.description.length' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            CANONICAL_PRESENT=$(jq -r '.basicSEO.canonical' "$SUMMARY_FILE" 2>/dev/null || echo "false")
+            VIEWPORT_OPTIMIZED=$(jq -r '.basicSEO.viewport' "$SUMMARY_FILE" 2>/dev/null || echo "false")
+            LANG_PRESENT=$(jq -r '.basicSEO.language' "$SUMMARY_FILE" 2>/dev/null || echo "false")
+            
+            # Content metrics
+            H1_COUNT=$(jq -r '.content.h1Count' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            TOTAL_HEADINGS=$(jq -r '.content.totalHeadings' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            TOTAL_IMAGES=$(jq -r '.content.totalImages' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            IMAGES_WITH_ALT=$(jq -r '.content.imagesWithAlt' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            STRUCTURED_DATA=$(jq -r '.content.structuredDataBlocks' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            
+            # Social media
+            OPEN_GRAPH_TAGS=$(jq -r '.socialMedia.openGraphTags' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            TWITTER_CARDS=$(jq -r '.socialMedia.twitterCards' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+            
+            echo "**📄 Page Title:** $PAGE_TITLE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            echo "## 🎯 Overall Assessment" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Metric | Score |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 🏆 **SEO Score** | **${OVERALL_SCORE}/100 (${PERCENTAGE}%)** |" >> $GITHUB_STEP_SUMMARY
+            echo "| ⚠️ Issues Found | $ISSUES_COUNT |" >> $GITHUB_STEP_SUMMARY
+            echo "| 💡 Recommendations | $RECOMMENDATIONS_COUNT |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # SEO Score assessment with emojis
+            if [ "$PERCENTAGE" -ge 90 ]; then
+              SEO_RATING="🟢 Excellent SEO"
+              SEO_DESCRIPTION="Website has excellent SEO optimization"
+            elif [ "$PERCENTAGE" -ge 75 ]; then
+              SEO_RATING="🟡 Good SEO"
+              SEO_DESCRIPTION="Website has good SEO with minor improvements needed"
+            elif [ "$PERCENTAGE" -ge 60 ]; then
+              SEO_RATING="🟠 Fair SEO"
+              SEO_DESCRIPTION="Website has fair SEO with several areas for improvement"
+            elif [ "$PERCENTAGE" -ge 40 ]; then
+              SEO_RATING="🔴 Poor SEO"
+              SEO_DESCRIPTION="Website has poor SEO optimization"
+            else
+              SEO_RATING="⚫ Very Poor SEO"
+              SEO_DESCRIPTION="Website has very poor SEO and needs significant improvements"
+            fi
+            
+            echo "### $SEO_RATING" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "$SEO_DESCRIPTION" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            echo "## 📊 Basic SEO Elements" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Element | Status | Details |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+            
+            # Title assessment
+            if [ "$TITLE_PRESENT" = "true" ]; then
+              if [ "$TITLE_LENGTH" -ge 30 ] && [ "$TITLE_LENGTH" -le 60 ]; then
+                TITLE_STATUS="✅ Perfect"
+              elif [ "$TITLE_LENGTH" -gt 0 ]; then
+                TITLE_STATUS="⚠️ Needs optimization"
+              else
+                TITLE_STATUS="❌ Empty"
+              fi
+            else
+              TITLE_STATUS="❌ Missing"
+            fi
+            echo "| 📝 Title Tag | $TITLE_STATUS | ${TITLE_LENGTH} characters |" >> $GITHUB_STEP_SUMMARY
+            
+            # Description assessment
+            if [ "$DESCRIPTION_PRESENT" = "true" ]; then
+              if [ "$DESCRIPTION_LENGTH" -ge 120 ] && [ "$DESCRIPTION_LENGTH" -le 160 ]; then
+                DESC_STATUS="✅ Perfect"
+              elif [ "$DESCRIPTION_LENGTH" -gt 0 ]; then
+                DESC_STATUS="⚠️ Needs optimization"
+              else
+                DESC_STATUS="❌ Empty"
+              fi
+            else
+              DESC_STATUS="❌ Missing"
+            fi
+            echo "| 📄 Meta Description | $DESC_STATUS | ${DESCRIPTION_LENGTH} characters |" >> $GITHUB_STEP_SUMMARY
+            
+            # Other elements
+            echo "| 🔗 Canonical URL | $([ "$CANONICAL_PRESENT" = "true" ] && echo "✅ Present" || echo "❌ Missing") | SEO best practice |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📱 Mobile Viewport | $([ "$VIEWPORT_OPTIMIZED" = "true" ] && echo "✅ Optimized" || echo "❌ Not optimized") | Mobile-friendly |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🌍 Language Tag | $([ "$LANG_PRESENT" = "true" ] && echo "✅ Present" || echo "❌ Missing") | Accessibility & SEO |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            echo "## 📋 Content Analysis" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Metric | Count | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+            
+            # H1 assessment
+            if [ "$H1_COUNT" -eq 1 ]; then
+              H1_STATUS="✅ Perfect"
+            elif [ "$H1_COUNT" -eq 0 ]; then
+              H1_STATUS="❌ Missing"
+            else
+              H1_STATUS="⚠️ Multiple"
+            fi
+            echo "| 📖 H1 Headings | $H1_COUNT | $H1_STATUS |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📚 Total Headings | $TOTAL_HEADINGS | Structure |" >> $GITHUB_STEP_SUMMARY
+            
+            # Images assessment
+            if [ "$TOTAL_IMAGES" -gt 0 ]; then
+              ALT_PERCENTAGE=$(echo "scale=0; ($IMAGES_WITH_ALT * 100) / $TOTAL_IMAGES" | bc -l 2>/dev/null || echo "0")
+              if [ "$ALT_PERCENTAGE" -ge 90 ]; then
+                IMG_STATUS="✅ Excellent"
+              elif [ "$ALT_PERCENTAGE" -ge 70 ]; then
+                IMG_STATUS="🟡 Good"
+              else
+                IMG_STATUS="❌ Poor"
+              fi
+              echo "| 🖼️ Images with Alt | ${IMAGES_WITH_ALT}/${TOTAL_IMAGES} (${ALT_PERCENTAGE}%) | $IMG_STATUS |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| 🖼️ Images | 0 | No images |" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            # Structured data
+            if [ "$STRUCTURED_DATA" -gt 0 ]; then
+              echo "| 📊 Structured Data | $STRUCTURED_DATA blocks | ✅ Present |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| 📊 Structured Data | 0 | ❌ Missing |" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            echo "## 📱 Social Media Optimization" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Platform | Tags Count | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|------------|--------|" >> $GITHUB_STEP_SUMMARY
+            
+            # Open Graph
+            if [ "$OPEN_GRAPH_TAGS" -ge 4 ]; then
+              OG_STATUS="✅ Complete"
+            elif [ "$OPEN_GRAPH_TAGS" -gt 0 ]; then
+              OG_STATUS="⚠️ Partial"
+            else
+              OG_STATUS="❌ Missing"
+            fi
+            echo "| 📘 Open Graph | $OPEN_GRAPH_TAGS | $OG_STATUS |" >> $GITHUB_STEP_SUMMARY
+            
+            # Twitter Cards
+            if [ "$TWITTER_CARDS" -ge 3 ]; then
+              TW_STATUS="✅ Complete"
+            elif [ "$TWITTER_CARDS" -gt 0 ]; then
+              TW_STATUS="⚠️ Partial"
+            else
+              TW_STATUS="❌ Missing"
+            fi
+            echo "| 🐦 Twitter Cards | $TWITTER_CARDS | $TW_STATUS |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Show issues if any
+            if [ "$ISSUES_COUNT" -gt 0 ]; then
+              echo "## ⚠️ Issues Found" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              
+              # Extract and display issues
+              jq -r '.issues[] | "### \\(.type) (\\(.severity | ascii_upcase))\\n\\n**Description:** \\(.description)\\n\\n**Impact:** \\(.impact)\\n\\n---\\n"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Could not parse issues" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ **No critical SEO issues found!**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            # Show recommendations
+            if [ "$RECOMMENDATIONS_COUNT" -gt 0 ]; then
+              echo "## 💡 SEO Recommendations" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              
+              jq -r '.recommendations[] | "### \\(.category) (\\(.priority | ascii_upcase) priority)\\n\\n**Suggestion:** \\(.suggestion)\\n\\n**Impact:** \\(.impact)\\n\\n---\\n"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Could not parse recommendations" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            # SEO Best Practices Tips
+            echo "## 🚀 SEO Best Practices" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Quick SEO Checklist:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "1. **📝 Title Tags**: Keep between 30-60 characters, include target keywords" >> $GITHUB_STEP_SUMMARY
+            echo "2. **📄 Meta Descriptions**: Write compelling 120-160 character summaries" >> $GITHUB_STEP_SUMMARY
+            echo "3. **📖 Heading Structure**: Use one H1, organize content with H2-H6 hierarchy" >> $GITHUB_STEP_SUMMARY
+            echo "4. **🖼️ Image SEO**: Add descriptive alt text to all images" >> $GITHUB_STEP_SUMMARY
+            echo "5. **📊 Structured Data**: Implement JSON-LD for rich snippets" >> $GITHUB_STEP_SUMMARY
+            echo "6. **📱 Mobile-First**: Ensure responsive design and mobile optimization" >> $GITHUB_STEP_SUMMARY
+            echo "7. **🔗 Internal Linking**: Create logical site structure with internal links" >> $GITHUB_STEP_SUMMARY
+            echo "8. **📘 Social Media**: Optimize Open Graph and Twitter Card tags" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Next steps
+            echo "## 🏁 Next Steps" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$PERCENTAGE" -ge 80 ]; then
+              echo "✅ **Excellent work!** Your website has strong SEO optimization." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "- Monitor SEO performance with tools like Google Search Console" >> $GITHUB_STEP_SUMMARY
+              echo "- Continue creating high-quality, relevant content" >> $GITHUB_STEP_SUMMARY
+              echo "- Keep technical SEO elements up to date" >> $GITHUB_STEP_SUMMARY
+            elif [ "$PERCENTAGE" -ge 60 ]; then
+              echo "🟡 **Good foundation!** Your website has solid SEO with room for improvement." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "- Focus on the high-priority recommendations above" >> $GITHUB_STEP_SUMMARY
+              echo "- Improve content structure and meta tags" >> $GITHUB_STEP_SUMMARY
+              echo "- Add missing structured data markup" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "🚨 **SEO needs attention!** Your website requires significant SEO improvements." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "- Start with basic meta tags (title, description)" >> $GITHUB_STEP_SUMMARY
+              echo "- Fix critical technical SEO issues first" >> $GITHUB_STEP_SUMMARY
+              echo "- Consider SEO audit by a professional" >> $GITHUB_STEP_SUMMARY
+              echo "- Implement structured data markup" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**📁 Generated Files:**" >> $GITHUB_STEP_SUMMARY
+            echo "- 📊 Complete SEO analysis data (JSON)" >> $GITHUB_STEP_SUMMARY
+            echo "- 📋 SEO summary with scores (JSON)" >> $GITHUB_STEP_SUMMARY
+            echo "- 📄 Detailed SEO report (Markdown)" >> $GITHUB_STEP_SUMMARY
+            echo "- 📸 Website screenshot for reference (PNG)" >> $GITHUB_STEP_SUMMARY
+            
+          else
+            echo "❌ **ERROR**: No SEO analysis summary file found" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The SEO analysis may have failed. Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Create the summary report file for artifact upload
+          echo "# SEO Analysis Report Summary" > dataset/seo-report-summary.md
+          echo "" >> dataset/seo-report-summary.md
+          echo "**Website:** ${{ inputs.website_url }}" >> dataset/seo-report-summary.md
+          echo "**Analysis Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> dataset/seo-report-summary.md
+          echo "" >> dataset/seo-report-summary.md
+
+          if [ -f "$SUMMARY_FILE" ]; then
+            echo "## SEO Analysis Results" >> dataset/seo-report-summary.md
+            echo "" >> dataset/seo-report-summary.md
+            echo "- **SEO Score:** ${OVERALL_SCORE}/100 (${PERCENTAGE}%)" >> dataset/seo-report-summary.md
+            echo "- **Page Title:** $PAGE_TITLE" >> dataset/seo-report-summary.md
+            echo "- **Issues Found:** $ISSUES_COUNT" >> dataset/seo-report-summary.md
+            echo "- **Recommendations:** $RECOMMENDATIONS_COUNT" >> dataset/seo-report-summary.md
+            echo "- **H1 Headings:** $H1_COUNT" >> dataset/seo-report-summary.md
+            echo "- **Total Headings:** $TOTAL_HEADINGS" >> dataset/seo-report-summary.md
+            echo "- **Images with Alt Text:** ${IMAGES_WITH_ALT}/${TOTAL_IMAGES}" >> dataset/seo-report-summary.md
+            echo "- **Open Graph Tags:** $OPEN_GRAPH_TAGS" >> dataset/seo-report-summary.md
+            echo "- **Twitter Card Tags:** $TWITTER_CARDS" >> dataset/seo-report-summary.md
+            echo "- **Structured Data Blocks:** $STRUCTURED_DATA" >> dataset/seo-report-summary.md
+          else
+            echo "**Status:** SEO analysis data not available" >> dataset/seo-report-summary.md
+          fi
+
+      - name: Process results
+        env:
+          WEBSITE_URL: ${{ inputs.website_url }}
+        run: |
+          node processing.mjs --url="${{ inputs.website_url }}" --report-type=seo
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-analysis-results
+          path: |
+            dataset/seo-analysis-data.json
+            dataset/seo-summary.json
+            dataset/seo-report.md
+            dataset/seo-report-summary.md
+            dataset/seo-analysis-screenshot.png
+            dataset/processing-summary.json

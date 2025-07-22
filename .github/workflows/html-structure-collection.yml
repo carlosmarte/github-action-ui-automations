@@ -1,0 +1,235 @@
+name: HTML Structure Collection
+
+on:
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: 'Website URL to analyze HTML structure'
+        required: true
+        type: string
+
+jobs:
+  html-structure-collection:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'run_collect_html_structure/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        cd run_collect_html_structure
+        npm install
+    
+    - name: Install Playwright browsers
+      run: |
+        cd run_collect_html_structure
+        npx playwright install chromium
+    
+    - name: Create dataset directory
+      run: mkdir -p dataset
+    
+    - name: Run HTML structure collection
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        cd run_collect_html_structure
+        node html-structure-collector.mjs
+    
+    - name: Generate GitHub Actions Summary Report
+      run: |
+        echo "# 🏗️ HTML Structure Analysis Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**🌐 Website:** ${{ inputs.website_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**📅 Analysis Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        SUMMARY_FILE="dataset/html-structure-summary.json"
+        if [ -f "$SUMMARY_FILE" ]; then
+          TOTAL_ELEMENTS=$(jq -r '.htmlStructure.totalElements' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          HEADING_COUNT=$(jq -r '.htmlStructure.headingCount' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          PARAGRAPH_COUNT=$(jq -r '.htmlStructure.paragraphCount' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          LINK_COUNT=$(jq -r '.htmlStructure.linkCount' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          FORM_COUNT=$(jq -r '.htmlStructure.formCount' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          IMAGE_COUNT=$(jq -r '.htmlStructure.imageCount' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          TREE_NODES=$(jq -r '.inheritanceTree.totalNodes' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          MAX_DEPTH=$(jq -r '.inheritanceTree.maxDepth' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          STRUCTURAL_COMPLEXITY=$(jq -r '.analysis.structuralComplexity' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          SEMANTIC_SCORE=$(jq -r '.analysis.semanticScore' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          
+          echo "## 📊 Structure Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Element Type | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏗️ Total Elements | $TOTAL_ELEMENTS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📝 Headings | $HEADING_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📄 Paragraphs | $PARAGRAPH_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔗 Links | $LINK_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📝 Forms | $FORM_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🖼️ Images | $IMAGE_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🌳 Inheritance Tree Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌲 Total Tree Nodes | $TREE_NODES |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📏 Maximum Depth | $MAX_DEPTH levels |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🎯 Structural Complexity | $STRUCTURAL_COMPLEXITY/100 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏷️ Semantic Score | $SEMANTIC_SCORE/100 |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Quality assessment
+          echo "## 📈 Quality Assessment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Structural complexity assessment
+          if [ "$STRUCTURAL_COMPLEXITY" -le 30 ]; then
+            COMPLEXITY_RATING="🟢 Simple"
+          elif [ "$STRUCTURAL_COMPLEXITY" -le 60 ]; then
+            COMPLEXITY_RATING="🟡 Moderate"
+          elif [ "$STRUCTURAL_COMPLEXITY" -le 80 ]; then
+            COMPLEXITY_RATING="🟠 Complex"
+          else
+            COMPLEXITY_RATING="🔴 Highly Complex"
+          fi
+          
+          # Semantic score assessment
+          if [ "$SEMANTIC_SCORE" -ge 80 ]; then
+            SEMANTIC_RATING="🟢 Excellent"
+          elif [ "$SEMANTIC_SCORE" -ge 60 ]; then
+            SEMANTIC_RATING="🟡 Good"
+          elif [ "$SEMANTIC_SCORE" -ge 40 ]; then
+            SEMANTIC_RATING="🟠 Fair"
+          else
+            SEMANTIC_RATING="🔴 Poor"
+          fi
+          
+          echo "- **Structural Complexity:** $COMPLEXITY_RATING ($STRUCTURAL_COMPLEXITY/100)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Semantic HTML Usage:** $SEMANTIC_RATING ($SEMANTIC_SCORE/100)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Accessibility indicators
+          HAS_ALT_TEXT=$(jq -r '.analysis.accessibilityIndicators.hasAltText' "$SUMMARY_FILE" 2>/dev/null || echo "false")
+          HAS_PROPER_HEADINGS=$(jq -r '.analysis.accessibilityIndicators.hasProperHeadingStructure' "$SUMMARY_FILE" 2>/dev/null || echo "false")
+          HAS_FORM_LABELS=$(jq -r '.analysis.accessibilityIndicators.hasFormLabels' "$SUMMARY_FILE" 2>/dev/null || echo "false")
+          
+          echo "## ♿ Accessibility Indicators" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Indicator | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$HAS_ALT_TEXT" = "true" ]; then
+            echo "| 🖼️ Image Alt Text | ✅ Present |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 🖼️ Image Alt Text | ❌ Missing |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "$HAS_PROPER_HEADINGS" = "true" ]; then
+            echo "| 📝 Proper Heading Structure | ✅ Good |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 📝 Proper Heading Structure | ⚠️ Needs Review |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "$HAS_FORM_LABELS" = "true" ]; then
+            echo "| 📝 Form Labels | ✅ Present |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 📝 Form Labels | ❌ Missing |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Visual representation guide
+          echo "## 🎨 Visual Representation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The collected data includes inheritance tree structure that can be visualized using:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **📊 D3.js** - Force-directed graphs and hierarchical layouts" >> $GITHUB_STEP_SUMMARY
+          echo "- **🕸️ Cytoscape.js** - Network diagrams and interactive visualizations" >> $GITHUB_STEP_SUMMARY
+          echo "- **📈 Graphviz** - Automated graph layouts and tree structures" >> $GITHUB_STEP_SUMMARY
+          echo "- **🔄 Mermaid.js** - Text-based diagram generation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Data Structure:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Nodes: HTML elements with metadata and positioning" >> $GITHUB_STEP_SUMMARY
+          echo "- Edges: Parent-child relationships" >> $GITHUB_STEP_SUMMARY
+          echo "- Clusters: Elements grouped by tag type" >> $GITHUB_STEP_SUMMARY
+          echo "- Depth levels: Hierarchical structure indicators" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Overall assessment
+          echo "## 🏆 Overall Assessment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Calculate overall score
+          OVERALL_SCORE=$(echo "scale=0; ($SEMANTIC_SCORE + (100 - $STRUCTURAL_COMPLEXITY)) / 2" | bc -l 2>/dev/null || echo "50")
+          
+          if [ "$OVERALL_SCORE" -ge 80 ]; then
+            echo "✅ **EXCELLENT**: Well-structured HTML with good semantic practices" >> $GITHUB_STEP_SUMMARY
+          elif [ "$OVERALL_SCORE" -ge 60 ]; then
+            echo "🟡 **GOOD**: Decent structure with room for improvement" >> $GITHUB_STEP_SUMMARY
+          elif [ "$OVERALL_SCORE" -ge 40 ]; then
+            echo "⚠️ **FAIR**: Basic structure, consider improvements" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🚨 **NEEDS WORK**: Structure and semantics need significant improvement" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**📁 Generated Files:**" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ Detailed HTML structure data (JSON)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌳 Inheritance tree with visual data (JSON)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 Analysis summary and metrics (JSON)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📄 Human-readable report (Markdown)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📸 Page screenshot for reference (PNG)" >> $GITHUB_STEP_SUMMARY
+          
+        else
+          echo "❌ **ERROR**: No HTML structure summary file found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The HTML structure collection may have failed. Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Create the summary report file for artifact upload
+        echo "# HTML Structure Analysis Report" > dataset/html-structure-report-summary.md
+        echo "" >> dataset/html-structure-report-summary.md
+        echo "**Website:** ${{ inputs.website_url }}" >> dataset/html-structure-report-summary.md
+        echo "**Analysis Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> dataset/html-structure-report-summary.md
+        echo "" >> dataset/html-structure-report-summary.md
+        
+        if [ -f "$SUMMARY_FILE" ]; then
+          echo "## Structure Results" >> dataset/html-structure-report-summary.md
+          echo "" >> dataset/html-structure-report-summary.md
+          echo "- **Total Elements:** $TOTAL_ELEMENTS" >> dataset/html-structure-report-summary.md
+          echo "- **Headings:** $HEADING_COUNT" >> dataset/html-structure-report-summary.md
+          echo "- **Paragraphs:** $PARAGRAPH_COUNT" >> dataset/html-structure-report-summary.md
+          echo "- **Links:** $LINK_COUNT" >> dataset/html-structure-report-summary.md
+          echo "- **Tree Depth:** $MAX_DEPTH levels" >> dataset/html-structure-report-summary.md
+          echo "- **Structural Complexity:** $STRUCTURAL_COMPLEXITY/100" >> dataset/html-structure-report-summary.md
+          echo "- **Semantic Score:** $SEMANTIC_SCORE/100" >> dataset/html-structure-report-summary.md
+        else
+          echo "**Status:** HTML structure analysis not available" >> dataset/html-structure-report-summary.md
+        fi
+    
+    - name: Process results
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        node processing.mjs --url="${{ inputs.website_url }}" --report-type=html-structure
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: html-structure-results
+        path: |
+          dataset/html-structure-data.json
+          dataset/html-inheritance-tree.json
+          dataset/html-structure-summary.json
+          dataset/html-structure-report.md
+          dataset/html-structure-report-summary.md
+          dataset/html-structure-screenshot.png
+          dataset/processing-summary.json

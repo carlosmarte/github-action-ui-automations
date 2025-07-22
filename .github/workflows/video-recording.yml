@@ -1,0 +1,204 @@
+name: Website Video Recording
+
+on:
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: 'Website URL to record'
+        required: true
+        type: string
+      recording_duration:
+        description: 'Recording duration in seconds (default: 30)'
+        required: false
+        default: '30'
+        type: string
+      video_quality:
+        description: 'Video recording quality'
+        required: false
+        default: 'medium'
+        type: choice
+        options:
+          - low
+          - medium
+          - high
+      enable_interactions:
+        description: 'Enable user interaction simulation'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  video-recording:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'run_video_recording/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        cd run_video_recording
+        npm install
+    
+    - name: Install Playwright browsers
+      run: |
+        cd run_video_recording
+        npx playwright install chromium
+    
+    - name: Create dataset directory
+      run: mkdir -p dataset
+    
+    - name: Run video recording
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+        RECORDING_DURATION: ${{ inputs.recording_duration }}
+        VIDEO_QUALITY: ${{ inputs.video_quality }}
+        ENABLE_INTERACTIONS: ${{ inputs.enable_interactions }}
+      run: |
+        cd run_video_recording
+        node video-recorder.mjs
+    
+    - name: Generate GitHub Actions Summary Report
+      run: |
+        echo "# 🎬 Website Video Recording Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**🌐 Website:** ${{ inputs.website_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**📅 Recording Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+        echo "**⏱️ Duration:** ${{ inputs.recording_duration }} seconds" >> $GITHUB_STEP_SUMMARY
+        echo "**📺 Quality:** ${{ inputs.video_quality }}" >> $GITHUB_STEP_SUMMARY
+        echo "**🎭 Interactions:** ${{ inputs.enable_interactions }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        SUMMARY_FILE="dataset/video-recording-summary.json"
+        if [ -f "$SUMMARY_FILE" ]; then
+          DURATION=$(jq -r '.recording.duration' "$SUMMARY_FILE" 2>/dev/null || echo "Unknown")
+          FILE_SIZE=$(jq -r '.recording.fileSizeMB' "$SUMMARY_FILE" 2>/dev/null || echo "Unknown")
+          TOTAL_INTERACTIONS=$(jq -r '.interactions.total' "$SUMMARY_FILE" 2>/dev/null || echo "0")
+          VIDEO_PATH=$(jq -r '.recording.videoPath' "$SUMMARY_FILE" 2>/dev/null || echo "Unknown")
+          VIEWPORT=$(jq -r '.configuration.viewport | "\(.width)x\(.height)"' "$SUMMARY_FILE" 2>/dev/null || echo "Unknown")
+          
+          echo "## 📊 Recording Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 📹 Actual Duration | ${DURATION}s |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📁 File Size | ${FILE_SIZE} MB |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🖼️ Viewport | ${VIEWPORT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🎭 Total Interactions | $TOTAL_INTERACTIONS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📂 Video Location | \`$(basename "$VIDEO_PATH")\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Show interaction breakdown if interactions were performed
+          if [ "$TOTAL_INTERACTIONS" -gt 0 ]; then
+            echo "## 🎭 Interaction Breakdown" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Interaction Type | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|------------------|-------|" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract interaction types and counts
+            jq -r '.interactions.byType | to_entries[] | "| \(.key | ascii_upcase) | \(.value) |"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "| ERROR | Could not parse interactions |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Add performance metrics
+          echo "## 📈 Performance Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          AVG_SIZE_PER_SEC=$(echo "scale=2; $FILE_SIZE / $DURATION" | bc -l 2>/dev/null || echo "N/A")
+          echo "- **📊 Average File Size per Second:** ${AVG_SIZE_PER_SEC} MB/s" >> $GITHUB_STEP_SUMMARY
+          echo "- **🎬 Recording Quality:** ${{ inputs.video_quality }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **💾 Storage Efficiency:** $(echo "scale=1; $FILE_SIZE * 8 / $DURATION" | bc -l 2>/dev/null || echo "N/A") Mbps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Add configuration details
+          echo "## ⚙️ Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **🌐 Target URL:** ${{ inputs.website_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **⏱️ Requested Duration:** ${{ inputs.recording_duration }}s" >> $GITHUB_STEP_SUMMARY
+          echo "- **📺 Video Quality:** ${{ inputs.video_quality }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **🎭 User Interactions:** ${{ inputs.enable_interactions }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **🖼️ Viewport Size:** ${VIEWPORT}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Overall assessment
+          echo "## 📋 Assessment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "$VIDEO_PATH" ]; then
+            echo "✅ **SUCCESS**: Video recording completed successfully!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**📁 Generated Files:**" >> $GITHUB_STEP_SUMMARY
+            echo "- 📹 Video recording (\`$(basename "$VIDEO_PATH")\`)" >> $GITHUB_STEP_SUMMARY
+            echo "- 📸 Screenshot capture" >> $GITHUB_STEP_SUMMARY
+            echo "- 📊 Detailed metadata (JSON)" >> $GITHUB_STEP_SUMMARY
+            echo "- 📄 Human-readable report (Markdown)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **WARNING**: Video file may not have been created properly." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Show sample interactions if available
+          if [ "$TOTAL_INTERACTIONS" -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 🎬 Sample Interactions Performed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Show first 5 interactions
+            jq -r '.interactions.details[:5] | to_entries[] | "**\(.key + 1).** \(.value.type | ascii_upcase) - \(.value.timestamp) \(if .value.text then "(\(.value.text[:50])...)" else "" end)"' "$SUMMARY_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Could not parse interaction details" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$TOTAL_INTERACTIONS" -gt 5 ]; then
+              echo "... and $((TOTAL_INTERACTIONS - 5)) more interactions" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+        else
+          echo "❌ **ERROR**: No recording summary file found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The video recording may have failed. Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Create the summary report file for artifact upload
+        echo "# Website Video Recording Report" > dataset/video-recording-report-summary.md
+        echo "" >> dataset/video-recording-report-summary.md
+        echo "**Website:** ${{ inputs.website_url }}" >> dataset/video-recording-report-summary.md
+        echo "**Recording Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> dataset/video-recording-report-summary.md
+        echo "**Duration:** ${{ inputs.recording_duration }} seconds" >> dataset/video-recording-report-summary.md
+        echo "**Quality:** ${{ inputs.video_quality }}" >> dataset/video-recording-report-summary.md
+        echo "**Interactions Enabled:** ${{ inputs.enable_interactions }}" >> dataset/video-recording-report-summary.md
+        echo "" >> dataset/video-recording-report-summary.md
+        
+        if [ -f "$SUMMARY_FILE" ]; then
+          echo "## Recording Results" >> dataset/video-recording-report-summary.md
+          echo "" >> dataset/video-recording-report-summary.md
+          echo "- **Actual Duration:** ${DURATION}s" >> dataset/video-recording-report-summary.md
+          echo "- **File Size:** ${FILE_SIZE} MB" >> dataset/video-recording-report-summary.md
+          echo "- **Total Interactions:** $TOTAL_INTERACTIONS" >> dataset/video-recording-report-summary.md
+          echo "- **Viewport:** ${VIEWPORT}" >> dataset/video-recording-report-summary.md
+        else
+          echo "**Status:** Recording summary not available" >> dataset/video-recording-report-summary.md
+        fi
+    
+    - name: Process results
+      env:
+        WEBSITE_URL: ${{ inputs.website_url }}
+      run: |
+        node processing.mjs --url="${{ inputs.website_url }}" --report-type=video-recording
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: video-recording-results
+        path: |
+          dataset/website-recording-*.webm
+          dataset/video-recording-summary.json
+          dataset/video-recording-report.md
+          dataset/video-recording-report-summary.md
+          dataset/video-recording-screenshot_start.png
+          dataset/video-recording-screenshot_end.png
+          dataset/processing-summary.json
